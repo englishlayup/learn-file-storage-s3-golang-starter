@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -64,16 +66,22 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	}
 
 	fileExt := strings.Split(mediaType, "/")[1]
-	filename := fmt.Sprintf("%s.%s", videoIDString, fileExt)
+	randomString, err := getRandomString()
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
+		return
+	}
+
+	filename := fmt.Sprintf("%s.%s", randomString, fileExt)
 	newFile, err := os.Create(filepath.Join(cfg.assetsRoot, filename))
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Internal server error", err)
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
 		return
 	}
 
 	_, err = io.Copy(newFile, file)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Internal server error", err)
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
 		return
 	}
 
@@ -89,4 +97,14 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		VideoURL:          video.VideoURL,
 		CreateVideoParams: video.CreateVideoParams,
 	})
+}
+
+func getRandomString() (string, error) {
+	randomBytes := make([]byte, 32)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
