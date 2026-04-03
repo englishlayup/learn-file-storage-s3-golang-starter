@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
@@ -47,6 +45,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		respondWithError(w, http.StatusBadRequest, "Unable to parse form file", err)
 		return
 	}
+	defer file.Close()
 
 	mediaType := header.Header.Get("Content-Type")
 	t, _, _ := mime.ParseMediaType(mediaType)
@@ -97,14 +96,4 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		VideoURL:          video.VideoURL,
 		CreateVideoParams: video.CreateVideoParams,
 	})
-}
-
-func getRandomString() (string, error) {
-	randomBytes := make([]byte, 32)
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		return "", err
-	}
-
-	return base64.RawURLEncoding.EncodeToString(randomBytes), nil
 }
