@@ -79,17 +79,45 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
 		return
 	}
-
 	tempFile.Seek(0, io.SeekStart)
 
+	processedFile, err := processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
+		return
+	}
+	defer os.Remove(processedFile)
+
+	aspectRatio, err := getVideoAspectRatio(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
+		return
+	}
+	var aspectPrefix string
+	switch aspectRatio {
+	case "16:9":
+		aspectPrefix = "landscape/"
+	case "9:16":
+		aspectPrefix = "portrait/"
+	default:
+		aspectPrefix = "other/"
+	}
+
 	key, _ := getRandomString()
+	key = aspectPrefix + key
 	key += ".mp4"
-	cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
-		Bucket:      &cfg.s3Bucket,
-		Key:         &key,
-		Body:        tempFile,
-		ContentType: &t,
-	})
+	if f, err := os.Open(processedFile); err == nil {
+		defer f.Close()
+		cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
+			Bucket:      &cfg.s3Bucket,
+			Key:         &key,
+			Body:        f,
+			ContentType: &t,
+		})
+	} else {
+		respondWithError(w, http.StatusInternalServerError, "Internal error", err)
+		return
+	}
 
 	videoURL := fmt.Sprint("https://", cfg.s3Bucket, ".s3.", cfg.s3Region, ".amazonaws.com/", key)
 	video.VideoURL = &videoURL
